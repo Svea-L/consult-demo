@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>康友健康模拟问诊</title>
+<style>
+/* Layout: one fixed-height phone screen (full-bleed on phones, framed on desktop); chat scrolls inside, dock pinned at bottom.
+   Single light theme on purpose: every participant must see the same colours regardless of device dark mode. */
+:root{
+  --desk:#DCE6E2;
+  --app:#F2F6F4;
+  --app-top:#E2EFEA;
+  --surface:#FFFFFF;
+  --ink:#13302C;
+  --ink-2:#3A5550;
+  --muted:#566C68;
+  --line:#DDE7E3;
+  --chip:#EBF2EF;
+  --accent:#0D6E62;
+  --accent-soft:#D8ECE6;
+  --accent-ink:#0A5249;
+  --flow:#22302E;
+  --sys:#E3EBE8;
+  --warn:#9A3B34;
+  /* doctor portrait tones: grey-blue and sand, each about equally far from the platform teal */
+  --tone-zhang-bg:#DCE3EC; --tone-zhang-shirt:#4F6683;
+  --tone-lin-bg:#EFE4D0;   --tone-lin-shirt:#8B6A3E;
+  --skin:#E6C29E; --skin-shade:#D3A983; --hair:#2E3034;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+.stage{height:100%;display:flex;align-items:center;justify-content:center}
+.device{position:relative;width:100%;height:100%;max-width:430px;background:var(--app);overflow:hidden;display:flex;flex-direction:column}
+@media (min-width:640px) and (min-height:640px){
+  .stage{padding:28px}
+  .device{height:min(880px,100%);border-radius:38px;box-shadow:0 0 0 9px #FBFDFC,0 0 0 10px #C9D7D2,0 36px 80px rgba(19,48,44,.20)}
+}
+.screen{flex:1;display:flex;flex-direction:column;min-height:0}
+
+/* ---------- start ---------- */
+.start{padding:28px 24px 22px;background:linear-gradient(180deg,var(--app-top) 0%,var(--app) 46%);justify-content:space-between;gap:24px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:.04em}
+.logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;flex:none}
+.logo svg{width:18px;height:18px}
+.start-main{display:flex;flex-direction:column;gap:14px}
+.start-main h1{font-size:30px;line-height:1.25;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.start-main p{margin:0;color:var(--ink-2);font-size:16px}
+.start-steps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:10px}
+.start-steps li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;font-size:15px;color:var(--ink-2)}
+.start-steps b{width:28px;height:28px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:13px;color:var(--accent);font-weight:650;box-shadow:inset 0 0 0 1px var(--line)}
+.start-foot{display:flex;flex-direction:column;gap:14px}
+.primary-btn{min-height:52px;border:0;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;letter-spacing:.06em}
+.primary-btn:active{background:var(--accent-ink)}
+.fine{font-size:13px;color:var(--muted);text-align:center;margin:0}
+.session-line{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#F6EBD8;color:#72501F;font-size:12px}
+.linkish{border:0;background:none;color:var(--accent);font-size:12.5px;padding:6px 4px;text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- app bar ---------- */
+.chat-screen{background:linear-gradient(180deg,var(--app-top) 0px,var(--app) 260px)}
+.appbar{display:grid;grid-template-columns:44px 1fr 88px;align-items:center;min-height:58px;padding:6px 6px;background:rgba(255,255,255,.80);backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);border-bottom:1px solid var(--line);position:relative;z-index:3}
+.icon-btn{width:44px;height:44px;border:0;background:none;border-radius:12px;display:grid;place-items:center;color:var(--ink)}
+.icon-btn:hover{background:var(--chip)}
+.icon-btn svg{width:22px;height:22px}
+.appbar .back{color:var(--ink-2);cursor:default}
+.appbar .back:hover{background:none}
+.bar-title{text-align:center;line-height:1.3;min-width:0}
+.bar-title strong{display:block;font-size:17px;font-weight:650}
+.bar-title span{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-actions{display:flex;justify-content:flex-end}
+
+/* ---------- chat ---------- */
+.chat{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}
+.chat>*{flex-shrink:0} /* without this the action list (overflow:hidden) collapses to zero height inside the scrolling flex column */
+.enter{animation:enter .28s ease-out both}
+@keyframes enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.scene{border:1px dashed #AFC6BF;border-radius:14px;padding:11px 14px;font-size:14px;line-height:1.65;color:var(--ink-2);background:rgba(255,255,255,.55)}
+.scene b{display:block;font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:600;margin-bottom:2px}
+
+.doc-card{width:100%;border:0;text-align:left;color:var(--ink);background:var(--surface);border-radius:18px;padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 2px rgba(19,48,44,.05)}
+.doc-card:hover{box-shadow:0 1px 2px rgba(19,48,44,.05),0 0 0 1px #C9DAD5}
+.doc-top{display:flex;gap:12px;align-items:center}
+.doc-card .info{min-width:0;flex:1}
+.doc-card .name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.doc-card .name strong{font-size:17px}
+.tag{font-size:12px;line-height:1.5;padding:1px 7px;border-radius:6px;border:1px solid #BCD3CC;color:var(--accent-ink);background:#F3F9F7}
+.doc-card .where{font-size:13.5px;color:var(--muted);margin-top:2px}
+.mode{font-size:12px;line-height:1.5;color:var(--accent-ink);background:var(--accent-soft);padding:1px 8px;border-radius:999px;white-space:nowrap;margin-left:auto}
+.mode.human{margin-left:0}
+.entry-card .doc-foot span:first-child{color:var(--ink-2)}
+.req-btn{width:100%;min-height:50px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:16.5px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+.req-btn svg{width:20px;height:20px}
+.req-btn:active{background:var(--accent-ink)}
+.focus{margin:0;font-size:14.5px;line-height:1.65;color:var(--ink-2);background:#F6FAF8;border-radius:12px;padding:9px 12px}
+.doc-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.doc-foot .more{display:inline-flex;align-items:center;gap:2px;color:var(--accent-ink);white-space:nowrap;flex:none}
+.doc-foot svg{width:14px;height:14px}
+.profile-head{display:flex;gap:14px;align-items:center}
+.profile-head strong{font-size:20px;display:block;line-height:1.3}
+.profile-head span{font-size:14px;color:var(--muted)}
+.verified{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--accent-ink)}
+.verified svg{width:14px;height:14px}
+.notify{position:absolute;left:10px;right:10px;top:10px;z-index:25;display:flex;gap:10px;align-items:center;background:rgba(255,255,255,.97);border-radius:16px;padding:10px 12px;box-shadow:0 10px 30px rgba(15,34,31,.18),0 0 0 1px var(--line);transform:translateY(-130%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.notify.on{transform:none}
+.notify .logo{width:34px;height:34px;border-radius:10px}
+.notify div{min-width:0;flex:1;line-height:1.4}
+.notify b{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);font-weight:500}
+.notify span{display:block;font-size:14.5px}
+
+.tsep{align-self:center;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;padding:2px 0}
+
+/* avatars */
+.av{position:relative;flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:650;font-size:17px;line-height:1}
+.av.sm{width:32px;height:32px;font-size:14px}
+.av.lg{width:52px;height:52px;font-size:21px}
+.av.zhang{background:var(--tone-zhang-bg)}
+.av.lin{background:var(--tone-lin-bg)}
+.av .portrait{width:100%;height:100%;display:block}
+.av.platform{background:var(--accent)}
+.av.platform svg{width:55%;height:55%}
+.ai-tag{position:absolute;right:-5px;bottom:-3px;font-size:10.5px;font-weight:700;line-height:1;padding:3px 4px;border-radius:6px;background:var(--flow);color:#fff;box-shadow:0 0 0 2px var(--app);letter-spacing:.02em}
+
+/* patient */
+.pt{align-self:flex-end;max-width:80%;background:var(--accent);color:#fff;padding:10px 14px;border-radius:18px 18px 6px 18px;font-size:16px;line-height:1.6;word-break:break-word}
+
+/* speaker turns (AI and doctor share one style on purpose) */
+.turn{display:flex;flex-direction:column;gap:8px;max-width:94%;align-self:flex-start}
+.turn-head{display:flex;align-items:center;gap:10px;padding-left:2px}
+.turn-name{font-size:14.5px;font-weight:600;line-height:1.3}
+.turn-sub{font-size:12.5px;color:var(--muted);line-height:1.3}
+.bubble{background:var(--surface);border-radius:6px 18px 18px 18px;padding:13px 16px;font-size:16px;line-height:1.75;box-shadow:0 1px 2px rgba(19,48,44,.06);word-break:break-word}
+.bubble p{margin:0}
+.bubble .sec+.sec{margin-top:12px}
+.bubble .h{font-weight:650;color:var(--ink)}
+.bubble .h+p{margin-top:2px}
+.bubble ol{margin:2px 0 0;padding-left:1.4em}
+.bubble li+li{margin-top:4px}
+.bubble ul{margin:2px 0 0;padding-left:1.25em}
+.bubble ol.poss{padding-left:1.4em}
+.bubble ol.poss>li+li{margin-top:8px}
+.poss-t{font-weight:600}
+.poss-l{font-size:15px;line-height:1.7;color:var(--ink-2);margin-top:2px}
+.poss-l b{font-weight:650;color:var(--ink)}
+.refs{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:1.4;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:4px 10px 4px 8px;margin-bottom:12px;cursor:default;user-select:none}
+.refs svg{width:15px;height:15px;flex:none}
+.gen{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:15px;padding:2px 0}
+.spin{width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.waitbar{align-self:center;display:flex;align-items:center;gap:10px;max-width:92%;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);font-size:14px;line-height:1.5;padding:9px 16px;border-radius:16px;box-shadow:0 1px 2px rgba(19,48,44,.05)}
+.flow-btn:disabled{background:#8A9794;cursor:not-allowed}
+.bubble li::marker{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.bubble p+p{margin-top:8px}
+.bubble .foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.6;color:var(--muted)}
+.bubble .foot p+p{margin-top:2px}
+.bubble .sig{text-align:right;color:var(--ink-2);font-size:15px;margin-top:6px}
+.typing{display:inline-flex;gap:5px;padding:16px 18px}
+.typing i{width:7px;height:7px;border-radius:50%;background:#9DB3AD;animation:dot 1.1s infinite ease-in-out}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.caret::after{content:"";display:inline-block;width:2px;height:1.05em;background:var(--accent);margin-left:2px;vertical-align:-2px;animation:blink .8s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+.sys{align-self:center;max-width:92%;text-align:center;background:var(--sys);color:var(--ink-2);font-size:13.5px;line-height:1.6;padding:8px 14px;border-radius:12px}
+
+.acts{background:var(--surface);border-radius:18px;overflow:hidden;box-shadow:0 1px 2px rgba(19,48,44,.05)}
+.acts h3{font-size:13.5px;color:var(--muted);font-weight:500;margin:0;padding:13px 16px 4px}
+.act{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;min-height:52px;padding:0 14px 0 16px;border:0;border-top:1px solid var(--line);background:none;font-size:16px;text-align:left;color:var(--ink)}
+.act:first-of-type{border-top:0}
+.act:hover:not(:disabled){background:#F5F9F8}
+.act svg{width:16px;height:16px;color:#8EA39E;flex:none}
+.act:disabled{color:#748682;cursor:not-allowed} /* 3.8:1 on white */
+.act:disabled svg{color:#9AABA7}
+.ended{align-self:center;font-size:13.5px;color:var(--ink-2);background:var(--sys);padding:8px 14px;border-radius:12px;text-align:center}
+.fiction{font-size:12.5px;color:var(--muted);text-align:center;margin:4px 0 0}
+
+/* ---------- dock ---------- */
+.dock{background:rgba(255,255,255,.94);border-top:1px solid var(--line);padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px));position:relative;z-index:2}
+.hint{font-size:12.5px;color:var(--muted);padding:0 6px 6px;display:flex;justify-content:space-between;gap:8px}
+.hint .count{font-variant-numeric:tabular-nums}
+.composer{display:flex;gap:10px;align-items:flex-end}
+.field{flex:1;min-width:0;background:var(--chip);border-radius:22px;padding:10px 16px;font-size:16px;line-height:1.55;min-height:44px;max-height:120px;overflow:auto;color:var(--ink);word-break:break-word}
+.field.waiting{color:var(--muted)}
+.send{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;border:0;flex:none;display:grid;place-items:center;transition:background .15s,transform .1s}
+.send svg{width:20px;height:20px}
+.send:active{transform:scale(.94)}
+.send:disabled{background:#B7CAC5;cursor:default}
+.send.ready{animation:ring 2s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(13,110,98,.35)}70%{box-shadow:0 0 0 10px rgba(13,110,98,0)}100%{box-shadow:0 0 0 0 rgba(13,110,98,0)}}
+.flow{display:flex;align-items:center;gap:12px;padding-top:4px}
+.flow-label{font-size:11.5px;letter-spacing:.14em;color:var(--muted);writing-mode:horizontal-tb;flex:none;line-height:1.35;text-align:center;width:28px}
+.flow-btn{flex:1;min-height:50px;border:0;border-radius:14px;background:var(--flow);color:#fff;font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:8px}
+.flow-btn svg{width:18px;height:18px}
+
+/* ---------- sheet, menu, toast ---------- */
+.layer{position:absolute;inset:0;z-index:20}
+.scrim{position:absolute;inset:0;background:rgba(15,34,31,.40);animation:fade .2s both}
+@keyframes fade{from{opacity:0}}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:88%;background:var(--surface);border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:up .24s cubic-bezier(.2,.8,.2,1) both;box-shadow:0 -10px 40px rgba(15,34,31,.15)}
+@keyframes up{from{transform:translateY(24px);opacity:0}}
+.grab{width:38px;height:5px;border-radius:3px;background:#D3DEDA;margin:8px auto 0}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 4px 20px}
+.sheet-head h2{font-size:18px;margin:0;line-height:1.4}
+.sheet-body{overflow:auto;padding:6px 20px 8px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.sheet-body p{margin:0}
+.sheet-actions{display:flex;gap:10px;padding:12px 20px calc(18px + env(safe-area-inset-bottom,0px))}
+.btn{flex:1;min-height:48px;border-radius:14px;font-size:16px;font-weight:600;border:1px solid #C9D7D3;background:var(--surface);color:var(--ink)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{color:var(--warn);border-color:#E4C6C2}
+.prompt{font-size:16px;color:var(--ink)}
+.note{font-size:13.5px;color:var(--muted);line-height:1.6}
+textarea.input{width:100%;min-height:128px;border:1px solid #C5D5D0;border-radius:14px;padding:12px 14px;font-size:16px;line-height:1.6;resize:vertical;background:#FBFDFC}
+.done-msg{display:flex;gap:12px;align-items:flex-start;background:var(--accent-soft);color:var(--accent-ink);border-radius:14px;padding:14px;font-size:15px;line-height:1.65}
+.done-msg svg{width:20px;height:20px;flex:none;margin-top:2px}
+.basis{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:16px}
+.basis .who{display:flex;align-items:center;gap:10px}
+.basis .who strong{font-size:15px;display:block;line-height:1.3}
+.basis .who span{font-size:12.5px;color:var(--muted);display:block;line-height:1.3}
+.basis p{font-size:15.5px;line-height:1.75}
+.kv{display:grid;gap:4px;padding:14px;border:1px solid var(--line);border-radius:16px}
+.kv h3{margin:0 0 4px;font-size:14px;color:var(--muted);font-weight:600}
+.kv p{font-size:15.5px;line-height:1.7}
+.casetext{font-size:16px;line-height:1.8;background:#F6FAF8;border-radius:14px;padding:14px 16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid label{display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--muted);min-width:0}
+.form-grid .wide{grid-column:1/-1}
+.form-grid input,.form-grid select{min-height:44px;border:1px solid #C5D5D0;border-radius:12px;padding:8px 12px;font-size:16px;background:#FBFDFC;color:var(--ink);width:100%}
+.err{color:var(--warn);font-size:13.5px}
+.json{width:100%;min-height:150px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-radius:12px;padding:10px;background:#F6FAF8;resize:vertical}
+
+.menu{position:absolute;top:58px;right:10px;z-index:15;background:var(--surface);border-radius:14px;box-shadow:0 12px 36px rgba(15,34,31,.18),0 0 0 1px var(--line);padding:6px;min-width:176px;animation:enter .16s both}
+.menu button{display:flex;width:100%;align-items:center;gap:10px;border:0;background:none;padding:11px 12px;border-radius:10px;font-size:15px;text-align:left;min-height:44px}
+.menu button:hover{background:var(--chip)}
+.menu .danger{color:var(--warn)}
+.menu svg{width:18px;height:18px;color:var(--muted)}
+
+.toast{position:absolute;left:50%;bottom:96px;transform:translate(-50%,8px);background:var(--flow);color:#fff;font-size:14px;padding:10px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:86%;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- done ---------- */
+.done{padding:28px 24px;justify-content:center;align-items:center;text-align:center;gap:16px;background:linear-gradient(180deg,var(--app-top) 0%,var(--app) 60%)}
+.done .check{width:64px;height:64px;border-radius:50%;background:var(--accent);display:grid;place-items:center;color:#fff}
+.done .check svg{width:30px;height:30px}
+.done h1{font-size:24px;margin:0;line-height:1.35}
+.done p{margin:0;color:var(--ink-2)}
+.done{position:relative}
+.done-more{position:absolute;top:10px;right:10px;color:var(--muted)}
+.start-actions{display:flex;flex-direction:column;gap:10px}
+.start-actions .btn{flex:none;min-height:50px}
+.resume-note{font-size:13px;color:var(--muted);text-align:center;margin:0}
+.warnbox{background:#FBF1EF;color:#7A2F28;border-radius:14px;padding:12px 14px;font-size:15px;line-height:1.65}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="device" id="device">
+
+  <!-- start -->
+  <section class="screen start" id="screen-start" aria-labelledby="start-title">
+    <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span id="brand-name">康友健康</span></div>
+    <div class="start-main">
+      <h1 id="start-title">模拟问诊演示</h1>
+      <p>接下来你会在这个平台上体验线上问诊。病情内容已经替你准备好。</p>
+      <ol class="start-steps">
+        <li><b>1</b><span>底部输入框里会出现下一条要说的话，点右侧的发送按钮把它发出去。</span></li>
+        <li><b>2</b><span>像平时用手机问诊一样阅读回复，有什么想法可以随时说出来。</span></li>
+        <li><b>3</b><span>需要继续时，主持人会提示你点哪里。</span></li>
+      </ol>
+    </div>
+    <div class="start-foot">
+      <div class="start-actions" id="start-actions"></div>
+      <p class="fine">以下为虚构研究情境，无需输入真实姓名、联系方式或病历。</p>
+      <div class="session-line"><span class="pill">内部预览 · 临床内容待审核</span><span id="session-summary"></span><button class="linkish" id="btn-settings" type="button" hidden>场次设置</button></div>
+    </div>
+  </section>
+
+  <!-- chat -->
+  <section class="screen chat-screen" id="screen-chat" hidden>
+    <header class="appbar">
+      <span class="icon-btn back" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span>
+      <div class="bar-title"><strong id="bar-name"></strong><span id="bar-sub"></span></div>
+      <div class="bar-actions">
+        <button class="icon-btn" id="btn-caseinfo" type="button" aria-label="查看病情资料"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5V8h4M9 12.5h6M9 16h4"/></svg></button>
+        <button class="icon-btn" id="btn-menu" type="button" aria-label="更多" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></button>
+      </div>
+    </header>
+    <div class="chat" id="chat" role="log" aria-live="polite" aria-label="问诊记录"></div>
+    <footer class="dock" id="dock"></footer>
+  </section>
+
+  <!-- done -->
+  <section class="screen done" id="screen-done" hidden>
+    <div class="check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h1 id="done-title"></h1>
+    <button class="icon-btn done-more" id="btn-done-menu" type="button" aria-label="更多" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></button>
+  </section>
+
+  <div class="menu" id="menu" role="menu" hidden>
+    <button type="button" role="menuitem" id="m-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/></svg>导出当前记录</button>
+    <button type="button" role="menuitem" id="m-clear" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/></svg>清除本场记录</button>
+  </div>
+
+  <div class="layer" id="layer" hidden>
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" id="sheet">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head"><h2 id="sheet-title"></h2><button class="icon-btn" id="sheet-x" type="button" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="sheet-body" id="sheet-body"></div>
+      <div class="sheet-actions" id="sheet-actions"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="notify" id="notify" aria-hidden="true" hidden></div>
+</div>
+</div>
+
+<script>window.StudyContent={"content_version": "draft-2026-11-13.4", "study_material_version": "build-2026-11-04.1", "clinical_review_status": {"status": "pending", "record_id": null}, "platform": "康友健康", "cases": {"A": {"id": "A", "title": "饭后上腹不适", "stage": "初次就诊，尚未检查", "doctor": {"id": "doctor_zhang", "name": "张医生", "surname": "张", "department": "消化内科", "title": "主任医师", "hospital": "某三甲医院（三级甲等）"}, "clinical_review_status": "pending", "case_text": "你今年36岁，近4周反复在饭后感到上腹发胀、隐痛，位置在心口窝下方到偏右，有时右后背发酸；吃得油腻或过饱时更明显，饮食清淡时偶尔也有，打嗝较多。没有呕血、黑便、发烧、皮肤或眼睛发黄，体重没有明显变化。此前没有做过腹部B超、胃镜或幽门螺杆菌检查，最近没有用药。工作忙，经常不吃早饭，晚上应酬多；没有药物过敏或重大疾病。", "advice": {"X": {"reading": "胆囊方面的问题", "ai": {"possibilities": [{"title": "胆囊方面的问题，如胆囊结石或慢性胆囊炎", "level": "可能性较高", "lines": [{"label": "相符", "text": "不适偏向右上腹；吃得油腻或过饱后更明显；右后背有酸胀。"}, {"label": "相关因素", "text": "经常不吃早饭、晚间聚餐多，这类饮食习惯与胆囊问题有关。"}]}, {"title": "功能性消化不良", "level": "可能性较低", "lines": [{"label": "相符", "text": "饭后发胀，打嗝较多。"}, {"label": "不太相符", "text": "症状与油腻饮食的关系比较明显，位置偏右，并牵涉右后背。"}]}], "steps": ["先做一次空腹的肝胆B超。这项检查无创，能直接看到胆囊有没有结石或炎症表现。", "检查需要空腹，建议安排在上午；具体要求以检查机构为准。", "拿到结果后，再讨论后续处理。"]}, "doctor": "您的不适偏向右上腹，吃得油腻或过饱后更明显，右后背也有酸胀，我考虑更像胆囊方面的问题。建议先做一次空腹的肝胆B超，检查前少吃油腻、不要吃得太饱，拿到结果后再定下一步。出现持续不缓解的腹痛、发烧、皮肤或眼睛发黄、呕血或黑便，请尽快就医。", "rationale": "胆囊的不适常出现在右上腹，进食油腻或吃得过饱后更容易发作，有时牵连到右后背。您的描述里有这几点，经常不吃早饭、晚间聚餐多也是常见的相关因素。肝胆B超无创，能直接看到胆囊的情况；先做这项检查，结果正常再考虑胃的问题。"}, "Y": {"reading": "功能性消化不良", "ai": {"possibilities": [{"title": "功能性消化不良", "level": "可能性较高", "lines": [{"label": "相符", "text": "以饭后发胀、隐痛和打嗝为主；饮食清淡时也会出现；症状时好时坏。"}, {"label": "相关因素", "text": "三餐不规律，晚间应酬多。幽门螺杆菌感染会引起同样的表现，需要先排除。"}]}, {"title": "胆囊方面的问题", "level": "可能性较低", "lines": [{"label": "相符", "text": "吃得油腻或过饱后更明显，有时右后背发酸。"}, {"label": "不太相符", "text": "饮食清淡时也会发作；不适范围从心口窝下方到偏右，不局限在右上腹。"}]}], "steps": ["先做幽门螺杆菌呼气试验。这项检查无创，吹气即可完成，用来确认有没有感染。", "检测前先不要自行服用胃药，以免影响结果；具体要求以检查机构为准。", "拿到结果后，再讨论后续处理。"]}, "doctor": "您的不适以饭后发胀、隐痛和打嗝为主，饮食清淡时也会出现，我考虑更像功能性消化不良，同时要排除幽门螺杆菌感染。建议先做幽门螺杆菌呼气试验，检测前先不要自行服用胃药，拿到结果后再定下一步。出现持续不缓解的腹痛、发烧、皮肤或眼睛发黄、呕血或黑便，请尽快就医。", "rationale": "功能性消化不良常表现为饭后上腹发胀、隐痛和打嗝，和吃什么的关系不固定。您饮食清淡时也会不舒服，不适的位置也不只在右侧，更符合这种情况。幽门螺杆菌感染会引起类似症状，呼气试验无创，可以先排除；用过胃药会影响结果，所以检测前先不用药。"}}, "advice_shared": {"summary": "您36岁，饭后上腹发胀、隐痛约4周，位置在心口窝下方到偏右，有时右后背发酸。吃得油腻或过饱时更明显，饮食清淡时偶尔也有，打嗝较多。没有呕血、黑便、发烧、皮肤发黄或体重下降。", "notes": ["三餐尽量定时，早饭按时吃。", "少吃油腻，聚餐不要吃得太饱，少喝酒。", "记下不适出现的时间和与进食的关系，就诊时告诉医生。"], "urgent": "出现持续不缓解的腹痛、发烧、皮肤或眼睛发黄、呕血或黑便时，请尽快就医，不要等。"}}, "B": {"id": "B", "title": "夜间手麻，影响睡眠", "stage": "初次就诊，尚未检查", "doctor": {"id": "doctor_lin", "name": "林医生", "surname": "林", "department": "手外科", "title": "主任医师", "hospital": "某三甲医院（三级甲等）"}, "clinical_review_status": "pending", "case_text": "你今年40岁，近2个月右手发麻，夜间明显，有时麻醒；以拇指、食指、中指为主，有时感觉整只手都麻，甩手后好转。颈部和右肩近来发酸，低头久了手臂也有麻胀。手部力量正常，拿东西不受影响。此前没有看过医生或做过检查，没有用过支具等处理。平时使用鼠标键盘较多；没有糖尿病、甲状腺问题或其他重大疾病。", "advice": {"X": {"reading": "腕管综合征", "ai": {"possibilities": [{"title": "腕管综合征，即手腕处的神经受压", "level": "可能性较高", "lines": [{"label": "相符", "text": "麻木以拇指、食指、中指为主；夜间加重，有时麻醒；甩手后好转。"}, {"label": "相关因素", "text": "长期使用鼠标键盘。"}]}, {"title": "颈椎问题刺激神经", "level": "可能性较低", "lines": [{"label": "相符", "text": "颈部和右肩发酸，低头久了手臂有麻胀。"}, {"label": "不太相符", "text": "麻木主要集中在三根手指，甩手就能缓解。"}]}], "steps": ["夜间佩戴带支撑的腕部支具，让手腕在睡觉时保持平直。这是这类情况常用的第一步处理。", "坚持约6周，留意夜间麻醒的次数有没有减少。", "约6周后复评，再决定后续安排。"]}, "doctor": "您的麻木以拇指、食指、中指为主，夜里加重，甩甩手能缓解，我考虑更像腕管综合征，是手腕处的神经受压。建议先在夜间佩戴带支撑的腕部支具，坚持约6周，用鼠标键盘时避免手腕长时间弯曲，约6周后复评。出现持续麻木、手部无力或症状明显加重，请尽快就诊。", "rationale": "腕管综合征是手腕处的神经受压，麻木多集中在拇指、食指和中指，夜间加重，甩手后缓解。您的描述里这几点都有，长期使用鼠标键盘也是常见的相关因素。夜间支具让手腕保持平直，是这类情况常用的第一步处理，约6周后看效果再定。"}, "Y": {"reading": "颈椎来源", "ai": {"possibilities": [{"title": "颈椎问题刺激了通往手臂的神经", "level": "可能性较高", "lines": [{"label": "相符", "text": "颈部和右肩发酸；低头久了手臂麻胀；麻木有时累及整只手。"}, {"label": "相关因素", "text": "每天长时间对着电脑、低头。"}]}, {"title": "腕管综合征", "level": "可能性较低", "lines": [{"label": "相符", "text": "拇指、食指、中指麻木较多，夜间明显。"}, {"label": "不太相符", "text": "麻木有时累及整只手，并伴有颈肩不适和手臂麻胀，不局限在手腕以下。"}]}], "steps": ["先到骨科或脊柱外科面诊，检查颈椎。医生会通过查体和必要的影像检查，确认神经是否在颈部受到刺激。", "就诊前先不要做大力的颈部推拿。", "检查结果出来后，再决定处理方式。"]}, "doctor": "您颈肩发酸，低头久了手臂麻胀，麻木有时累及整只手，我考虑更像颈椎问题刺激了通往手臂的神经。建议先到骨科或脊柱外科检查颈椎，就诊前减少长时间低头、把屏幕抬到平视高度，检查结果出来后再定处理方式。出现持续麻木、手部无力或症状明显加重，请尽快就诊。", "rationale": "颈椎问题刺激神经时，麻木可以从颈肩沿手臂延伸到手，范围不限于某几根手指，低头久了会加重。您有颈肩发酸、低头后手臂麻胀，麻木有时累及整只手，更符合这种情况。先检查颈椎能明确原因，再决定处理方式。"}}, "advice_shared": {"summary": "您40岁，右手发麻约2个月，夜间明显、有时麻醒，以拇指、食指、中指为主，有时整只手都麻，甩手后好转。颈部和右肩发酸，低头久了手臂也有麻胀。手部力量正常。", "notes": ["用电脑时把屏幕抬到平视高度，减少长时间低头。", "手腕保持平直，不要长时间弯曲或压在桌沿上。", "每隔40分钟左右起身活动一下颈肩和手腕。"], "urgent": "出现持续麻木、手部无力或症状明显加重时，请尽快就诊。"}}}, "identity_templates": {"avatar": {"avatar_source": "doctor", "badge": "AI", "title": "{doctor}的 AI 分身", "subtitle": "{department} · {title}", "greeting": "我是{doctor}的 AI 分身，有问题直接问我吧～", "scene": "这是你第一次使用{doctor}的 AI 分身。要发送的内容已经准备好，请逐条点击发送。"}, "general": {"avatar_source": "platform", "badge": "AI", "title": "康友健康医疗 AI 助手", "subtitle": "康友健康平台服务", "greeting": "我是康友健康医疗 AI 助手，有问题直接问我吧～", "scene": "这是你第一次使用康友健康医疗 AI 助手。要发送的内容已经准备好，请逐条点击发送。"}}, "shared_ui": {"disclaimer": "内容由 AI 生成，非诊疗意见，不适请及时就医", "review": "本条回复由 AI 自动生成，发送前未经{doctor}审核。", "reviewed": "{doctor}已查看您的问诊记录和 AI 的回复。", "doctor_prefix": "您好，您的问诊记录和 AI 的分析我都看过了。", "doctor_signature": "——{doctor}", "consultation_title": "模拟问诊演示", "case_heading": "病情资料", "doctor_heading": "本次接诊医生", "start": "开始", "reveal": "请真人医生看看", "next": "进入下一个问诊", "complete": "演示结束，请回到访谈", "consultation_ended": "本次模拟咨询已结束", "study_stopped": "本场研究已中止", "input_hint": "请围绕模拟情境填写，无需输入真实姓名、联系方式或病历。", "submit": "发送", "cancel": "取消", "close": "关闭", "confirm": "确认", "simulated_submission": "（模拟）已记录。本演示不会向医生或平台发送，也不会产生实际回复。", "source_ai": "在情境设定中，AI 回复由 AI 生成。", "source_doctor": "在情境设定中，医生回复由{doctor}本人撰写。", "pending_notice": "临床内容待审核，仅供研究团队内部走查。", "unknown_fact": "当前材料没有提供这项信息。", "actions": [{"id": "basis", "label": "查看建议依据"}, {"id": "source", "label": "查看来源与审核说明"}, {"id": "contact-doctor", "label": "联系接诊医生", "prompt": "你想对这位医生说什么或问什么？"}, {"id": "contact-ai", "label": "询问 AI", "prompt": "你想对 AI 说什么或问什么？"}, {"id": "contact-platform", "label": "联系平台", "prompt": "你想对平台客服说什么或问什么？"}, {"id": "other", "label": "找另一位医生", "prompt": "你希望找什么样的医生、问什么？"}, {"id": "end-consultation", "label": "结束咨询", "prompt": "确认结束本次模拟咨询？历史内容仍可查看，也可继续后面的访谈流程。"}], "ai_references": "已参考 12 篇医学资料", "ai_generating": ["正在分析您的描述…", "正在检索医学资料…"], "doctor_waiting": ["正在为您接入真人医生…", "{doctor}正在查看您的问诊记录和 AI 的回复…", "{doctor}正在撰写回复…"], "reveal_confirm": "确认把这次问诊转给真人医生？", "ai_intro": "可以咨询常见健康问题，需要时可转真人医生。", "doctor_joined": "{doctor}已接诊", "human_tag": "真人医生"}};</script>
+<script>
+(function(){
+'use strict';
+const SC = window.StudyContent;
+const BUILD = 'consult-draft-2026-11-13.4';
+
+/* ---------- new text: AI follow-up questions and patient turns (draft, pending clinical review) ---------- */
+const SCRIPTS = {
+  /* script v3 (dialogue-script-v3.md §3–4): greeting, then three patient turns, each answered by one AI turn */
+  A: [
+    {id:'a0', who:'ai', kind:'greet'},
+    {id:'p1', who:'pt', text:'最近吃完饭肚子上面这块老是不舒服，胀胀的，有时候隐隐地疼，差不多4周了，时好时坏的。'},
+    {id:'a1', who:'ai', text:'这种饭后上腹不适持续4周，需要了解几个关键细节来帮助判断。不舒服具体在哪个位置，正中间还是偏右？和吃什么有没有关系？有没有呕血、黑便、发烧、皮肤或眼睛发黄，或者体重明显下降？'},
+    {id:'p2', who:'pt', text:'说不太准，心口窝下面到偏右一点这一片，有时候右边后背也有点酸。吃得油、吃得多的时候更明显，不过平时吃得清淡有时也会胀，打嗝比较多。呕血、黑便、发烧、发黄都没有，体重没怎么变。'},
+    {id:'a2', who:'ai', text:'好的。再了解一下：以前做过腹部B超、胃镜或查过幽门螺杆菌吗？最近用过什么药？另外，您今年多大，平时饮食作息怎么样，有没有药物过敏或其他重大疾病？'},
+    {id:'p3', who:'pt', text:'这些检查都没做过，最近也没吃什么药。我36岁，工作忙，经常不吃早饭，晚上应酬多。没有药物过敏，也没什么大病。我下一步该怎么处理？'},
+    {id:'adv', who:'ai', kind:'advice'}
+  ],
+  B: [
+    {id:'a0', who:'ai', kind:'greet'},
+    {id:'p1', who:'pt', text:'右手最近老是发麻，晚上比较明显，有时候会麻醒，大概有2个月了。'},
+    {id:'a1', who:'ai', text:'手麻到夜里会醒，已经持续2个月，需要了解几个关键细节来帮助判断。麻木具体在哪几根手指？脖子、肩膀有没有不舒服？手有没有没劲、拿东西容易掉的情况？'},
+    {id:'p2', who:'pt', text:'主要是拇指、食指、中指，有时候又感觉整只手都麻，说不太清。甩甩手会好一点。脖子和右肩最近也有点酸，我天天对着电脑，低头久了有时候手臂也有点麻胀。手没觉得没劲，东西都拿得住。'},
+    {id:'a2', who:'ai', text:'好的。再了解一下：之前有医生看过或做过检查吗？用过护腕、支具或者别的处理吗？另外，您今年多大，有没有糖尿病、甲状腺问题，或者其他重大疾病？'},
+    {id:'p3', who:'pt', text:'没看过医生，也没做过检查，什么都没用过。我40岁，没有糖尿病和甲状腺问题，也没什么大病。平时鼠标键盘用得很多。下一步该怎么处理比较好？'},
+    {id:'adv', who:'ai', kind:'advice'}
+  ]
+};
+/* doctor profiles (dialogue-script-v3.md §7.3): matched length and structure; names no condition, so neither reading is favoured */
+const PROFILE = {
+  A: {focus:'专注于胃肠及肝胆常见病的诊治，擅长上腹不适、腹胀等症状的评估与处理。', years:'从事临床工作20余年'},
+  B: {focus:'专注于手部及上肢常见病的诊治，擅长手麻、手部疼痛等症状的评估与处理。', years:'从事临床工作20余年'}
+};
+const TONE = {A:'zhang', B:'lin'};
+const ORDERS = {S1:[['A','avatar'],['B','general']],S2:[['B','avatar'],['A','general']],S3:[['A','general'],['B','avatar']],S4:[['B','general'],['A','avatar']]};
+const T = {start:'10:00', ai:'10:02', doc:'10:03'};  /* §9.6: no pretend gap of several hours */
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tpl = (s, d) => String(s ?? '').replace(/\{doctor\}/g, d.name).replace(/\{department\}/g, d.department).replace(/\{title\}/g, d.title);
+const uid = p => p + '_' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, reduce ? 0 : ms));
+/* timed steps that must not be skipped under reduced motion (generation, doctor wait): shortened instead */
+const pause = (ms, reducedMs) => new Promise(r => setTimeout(r, reduce ? reducedMs : ms));
+const UI = SC.shared_ui;
+const ACTION = Object.fromEntries(UI.actions.map(a => [a.id, a]));
+const ICON = {
+  chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg>',
+  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V20.5H7z"/><path d="M14 3.5V8h4M9.5 12.5h5M9.5 16h5"/></svg>',
+  next:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  doctor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.6-4 3.3-6.5 7-6.5s6.4 2.5 7 6.5"/><path d="M12 14v3M10.5 15.5h3"/></svg>',
+  book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5c2.6-1 5.1-.8 7.5.8v13c-2.4-1.6-4.9-1.8-7.5-.8zM19.5 5.5c-2.6-1-5.1-.8-7.5.8v13c2.4-1.6 4.9-1.8 7.5-.8z"/></svg>',
+  logo:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+};
+
+/* ---------- state & storage ---------- */
+const KEY_LAST = 'kangyou-consult:last';
+const key = sid => 'kangyou-consult:' + sid;
+let S = null;
+function freshState(config){
+  return {schema_version:'1.0', config, sc:0, cursor:0, phase:'start', ended:[false,false], seq:0,
+          segment_id: uid('seg'), status:'not_started', created_at:new Date().toISOString(), updated_at:null, events:[]};
+}
+function save(){
+  S.updated_at = new Date().toISOString();
+  try { localStorage.setItem(key(S.config.session_id), JSON.stringify(S)); localStorage.setItem(KEY_LAST, S.config.session_id); } catch(e) {}
+}
+function load(sid){ try { const raw = localStorage.getItem(key(sid)); return raw ? JSON.parse(raw) : null; } catch(e) { return null; } }
+/* Entry modes:
+   - assigned: the link carries pid/sid/order/d1/d2 → settings entry hidden, start page shows only the session id
+     (participants on their own device must not see order or identity names); same session id resumes on reload.
+   - setup: setup=1, or no parameters at all (moderator's own device) → settings entry shown; if this device holds
+     an earlier session the start page offers "继续上一场" / "开始新场次" instead of silently resuming. */
+const PARAMS = new URLSearchParams(location.search);
+const ASSIGNED = ['pid','sid','order','d1','d2'].some(n => PARAMS.has(n));
+const SETUP = PARAMS.get('setup') === '1' || !ASSIGNED;
+function readConfig(){
+  const p = PARAMS;
+  const pid = p.get('pid') || 'PREVIEW';
+  const cfg = {pid, session_id: p.get('sid') || pid + '_session01', order: p.get('order') || 'S1',
+               directions:[p.get('d1') || 'XY', p.get('d2') || 'YX'], mode:'preview',
+               content_version: SC.content_version, study_material_version: SC.study_material_version, build: BUILD};
+  return validConfig(cfg) ? cfg : {...cfg, pid:'PREVIEW', session_id:'PREVIEW_session01', order:'S1', directions:['XY','YX']};
+}
+function validConfig(c){
+  return /^[A-Za-z0-9_-]{1,50}$/.test(c.pid) && /^[A-Za-z0-9_-]{1,80}$/.test(c.session_id) && ORDERS[c.order] && c.directions.every(d => d === 'XY' || d === 'YX');
+}
+
+/* ---------- context of the current scenario ---------- */
+function ctx(i = S.sc){
+  const [caseId, identity] = ORDERS[S.config.order][i];
+  const c = SC.cases[caseId], d = c.doctor, dir = S.config.directions[i];
+  const idt = SC.identity_templates[identity];
+  return {caseId, identity, c, d, dir, aiKey: dir[0], docKey: dir[1], idt, tone: TONE[caseId], script: SCRIPTS[caseId],
+          aiName: tpl(idt.title, d), aiSub: tpl(idt.subtitle, d)};
+}
+
+/* ---------- logging ---------- */
+function log(type, extra = {}){
+  const inScenario = ['A','A_done','B'].includes(S.phase);
+  const k = inScenario ? ctx() : null;
+  S.events.push({
+    event_id: uid('ev'), session_id: S.config.session_id, pid: S.config.pid, segment_id: S.segment_id,
+    sequence_no: ++S.seq, event_time: new Date().toISOString(), order: S.config.order,
+    scenario_index: k ? S.sc + 1 : null, case_id: k ? k.caseId : null, doctor_id: k ? k.d.id : null,
+    identity: k ? k.identity : null, direction: k ? k.dir : null,
+    phase: S.phase === 'A' || S.phase === 'A_done' ? 'stage_a' : S.phase === 'B' ? 'stage_b' : S.phase,
+    source: 'prototype', event_type: type, target: extra.target ?? null, text: extra.text ?? null,
+    ...(extra.data || {}),
+    study_material_version: S.config.study_material_version, content_version: S.config.content_version, build: BUILD
+  });
+  save();
+}
+
+/* ---------- avatars ---------- */
+/* Illustrated portraits (no real photos): same style for both doctors, short neutral hair, no facial features,
+   so neither gender nor age is signalled. The avatar-AI uses the doctor's portrait plus the AI badge;
+   the platform AI uses the platform mark plus the same badge. */
+const HAIR = {
+  zhang:'M15.9 20.6c-1-7.4 3.1-12.1 8.6-12.1 5.3 0 8.9 4 7.9 11.3-.8-2.7-2.2-4.7-4.2-5.7-2.9 2.2-7.6 3.6-12.3 6.5z',
+  lin:'M15.6 21.2c-1.2-7.8 3-12.7 8.4-12.7s9.6 4.9 8.4 12.7c-.5-2.9-1.5-5-3.1-6.3-1.9 1.6-5.8 2.6-10.1 2-1.7 1.1-3 2.4-3.6 4.3z'
+};
+function portrait(tone){
+  const id = 'pc-' + tone;
+  return `<svg class="portrait" viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="${id}"><circle cx="24" cy="24" r="24"/></clipPath></defs><g clip-path="url(#${id})">
+    <rect width="48" height="48" fill="var(--tone-${tone}-bg)"/><g transform="translate(24 22) scale(1.42) translate(-24 -22)">
+    <path d="M5.5 48c0-9.6 7.8-15.8 18.5-15.8S42.5 38.4 42.5 48z" fill="#FFFFFF"/>
+    <path d="M19.2 33.1 24 41.2l4.8-8.1c-1.5-.6-3.1-.9-4.8-.9s-3.3.3-4.8.9z" fill="var(--tone-${tone}-shirt)"/>
+    <path d="M19.2 33.1 24 41.2 21.5 48M28.8 33.1 24 41.2 26.5 48" fill="none" stroke="#C3CFCC" stroke-width=".9" stroke-linejoin="round"/>
+    <rect x="20.9" y="25" width="6.2" height="9" rx="2.6" fill="var(--skin-shade)"/>
+    <ellipse cx="24" cy="20.3" rx="7.7" ry="8.7" fill="var(--skin)"/>
+    <path d="${HAIR[tone]}" fill="var(--hair)"/></g></g></svg>`;
+}
+function avatar(kind, k, size = ''){
+  if (kind === 'general') return `<span class="av platform ${size}" aria-hidden="true">${ICON.logo}<b class="ai-tag">AI</b></span>`;
+  return `<span class="av ${k.tone} ${size}" aria-hidden="true">${portrait(k.tone)}${kind === 'ai' ? '<b class="ai-tag">AI</b>' : ''}</span>`;
+}
+const aiAvatar = (k, size) => avatar(k.identity === 'general' ? 'general' : 'ai', k, size);
+
+/* ---------- chat rendering ---------- */
+const chat = () => $('chat');
+function add(html, animate){
+  const wrap = document.createElement('div'); wrap.innerHTML = html.trim();
+  const el = wrap.firstElementChild; if (animate && !reduce) el.classList.add('enter');
+  chat().append(el); return el;
+}
+function scrollBottom(){ const c = chat(); c.scrollTo({top: c.scrollHeight, behavior: reduce ? 'auto' : 'smooth'}); }
+
+/* Entry (dialogue-script-v3.md §10.1). The whole entry differs by identity:
+   - avatar: the page sits under the doctor's name from the start (avatar card, clickable doctor profile);
+   - general: platform AI card, not clickable; no doctor name, portrait or profile anywhere until a real doctor joins (§10.2).
+   Both cards share the same intro sentence, size and position. */
+function header(k){
+  $('bar-name').textContent = k.aiName;
+  $('bar-sub').textContent = k.aiSub;
+  add(`<div class="scene"><b>研究情境</b>${esc(tpl(k.idt.scene, k.d))}</div>`);
+  const pf = PROFILE[k.caseId];
+  if (k.identity === 'avatar'){
+    const card = add(`<button type="button" class="doc-card entry-card" aria-label="查看${esc(k.d.name)}的主页"><div class="doc-top">${aiAvatar(k, 'lg')}<div class="info"><div class="name"><strong>${esc(k.aiName)}</strong></div><div class="where">${esc(k.d.hospital)} · ${esc(k.d.department)} · ${esc(k.d.title)}</div></div></div><p class="focus">${esc(pf.focus)}</p><div class="doc-foot"><span>${esc(UI.ai_intro)}</span><span class="more">医生主页${ICON.chev}</span></div></button>`);
+    card.addEventListener('click', openProfile);
+  } else {
+    add(`<div class="doc-card entry-card"><div class="doc-top">${aiAvatar(k, 'lg')}<div class="info"><div class="name"><strong>${esc(k.aiName)}</strong></div><div class="where">${esc(k.aiSub)}</div></div></div><p class="focus">${esc(UI.ai_intro)}</p></div>`);
+  }
+  add(`<div class="tsep">${T.start}</div>`);
+}
+/* The real doctor joins (§10.2): doctor card (no AI badge, "真人医生" tag) and a system line; identical for both identities. */
+function joinBlock(k, animate){
+  const pf = PROFILE[k.caseId];
+  const card = add(`<button type="button" class="doc-card" aria-label="查看${esc(k.d.name)}的主页"><div class="doc-top">${avatar('doctor', k, 'lg')}<div class="info"><div class="name"><strong>${esc(k.d.name)}</strong><span class="mode human">${esc(UI.human_tag)}</span><span class="tag">${esc(k.d.title)}</span></div><div class="where">${esc(k.d.hospital)} · ${esc(k.d.department)}</div></div></div><p class="focus">${esc(pf.focus)}</p><div class="doc-foot"><span>${esc(pf.years)}</span><span class="more">医生主页${ICON.chev}</span></div></button>`, animate);
+  card.addEventListener('click', openProfile);
+  add(`<div class="sys">${esc(tpl(UI.doctor_joined, k.d))}</div>`, animate);
+  return card;
+}
+function aiTurnShell(k){
+  return `<div class="turn"><div class="turn-head">${aiAvatar(k,'sm')}<div><div class="turn-name">${esc(k.aiName)}</div><div class="turn-sub">${esc(k.aiSub)}</div></div></div><div class="bubble"></div></div>`;
+}
+function aiParas(k, item){
+  if (item.kind === 'greet') return [tpl(k.idt.greeting, k.d)].concat(item.text ? [item.text] : []);
+  return [item.text];
+}
+/* AI advice, long version (dialogue-script-v3.md §9.1): headed sections returned as HTML blocks so they can appear one by one.
+   Summary / notes / urgent are shared by both readings of a case (case.advice_shared); possibilities and steps follow the reading. */
+const ADVICE_HEADS = ['情况小结','可能的情况（按可能性排序）','建议做法','这段时间的注意事项','需要尽快就医的情况'];
+/* Closing sentence after the last section, plain body text with no heading; identical for both identities, readings and cases.
+   Pending the user's final confirmation (dialogue-script-v3.md §8.2): set to '' to remove it. */
+const ADVICE_CLOSING = '以上是根据您的描述做出的初步判断，不能代替医生面诊和检查。';
+function adviceBlocks(k){
+  const a = k.c.advice[k.aiKey].ai, sh = k.c.advice_shared;
+  const poss = a.possibilities.map(p => `<li><div class="poss-t">${esc(p.title)}（${esc(p.level)}）</div>${p.lines.map(l => `<div class="poss-l"><b>${esc(l.label)}：</b>${esc(l.text)}</div>`).join('')}</li>`).join('');
+  return [
+    `<p class="h">${ADVICE_HEADS[0]}</p><p>${esc(sh.summary)}</p>`,
+    `<p class="h">${ADVICE_HEADS[1]}</p><ol class="poss">${poss}</ol>`,
+    `<p class="h">${ADVICE_HEADS[2]}</p><ol>${a.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`,
+    `<p class="h">${ADVICE_HEADS[3]}</p><ul>${sh.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`,
+    `<p class="h">${ADVICE_HEADS[4]}</p><p>${esc(sh.urgent)}</p>`
+  ].concat(ADVICE_CLOSING ? [`<p>${esc(ADVICE_CLOSING)}</p>`] : []);
+}
+const refChip = () => `<div class="refs">${ICON.book}<span>${esc(UI.ai_references)}</span></div>`;
+function aiFoot(k){
+  // one line, identical for both identities; the review fact (UI.review) stays in the 来源与审核说明 sheet
+  return `<div class="foot"><p>${esc(UI.disclaimer)}</p></div>`;
+}
+async function renderAI(k, item, animate){
+  if (item.kind === 'advice') add(`<div class="tsep">${T.ai}</div>`, animate);
+  const turn = add(aiTurnShell(k), animate);
+  const bubble = turn.querySelector('.bubble');
+  if (item.kind === 'advice') bubble.classList.add('advice');
+  if (!animate){
+    bubble.innerHTML = item.kind === 'advice' ? refChip() + adviceBlocks(k).map(b => `<div class="sec">${b}</div>`).join('') + aiFoot(k)
+                                              : aiParas(k, item).map(p => `<p>${esc(p)}</p>`).join('');
+    return;
+  }
+  if (item.kind === 'advice'){
+    // generation process, about 10 s in all (§9.5): two status lines (2 s + 3 s), then the reference chip and sections over about 5 s
+    const [st1, st2] = UI.ai_generating;
+    bubble.innerHTML = `<div class="gen"><span class="spin" aria-hidden="true"></span><span id="gen-text">${esc(st1)}</span></div>`; scrollBottom();
+    await pause(2000, 1000);
+    const g = bubble.querySelector('#gen-text'); if (g) g.textContent = st2;
+    await pause(3000, 1000);
+    bubble.innerHTML = refChip(); scrollBottom();
+    await pause(500, 0);
+    const blocks = adviceBlocks(k);
+    for (const html of blocks){
+      const sec = document.createElement('div'); sec.className = 'sec enter'; sec.innerHTML = html; bubble.append(sec);
+      scrollBottom(); await pause(Math.round(4300 / blocks.length), 0);
+    }
+    bubble.insertAdjacentHTML('beforeend', aiFoot(k)); scrollBottom();
+    return;
+  }
+  if (reduce){ bubble.innerHTML = aiParas(k, item).map(p => `<p>${esc(p)}</p>`).join(''); return; }
+  bubble.classList.add('typing'); bubble.innerHTML = '<i></i><i></i><i></i>'; scrollBottom();
+  await sleep(850);
+  bubble.classList.remove('typing'); bubble.innerHTML = '';
+  const paras = aiParas(k, item);
+  for (const text of paras){
+    const p = document.createElement('p'); p.className = 'caret'; bubble.append(p);
+    const chars = Array.from(text); let i = 0;
+    while (i < chars.length){ i = Math.min(chars.length, i + 2); p.textContent = chars.slice(0, i).join(''); if (i % 12 === 0) scrollBottom(); await sleep(34); }
+    p.classList.remove('caret');
+  }
+  scrollBottom();
+}
+function renderPatient(k, item, animate){
+  add(`<div class="pt">${esc(item.text)}</div>`, animate);
+}
+function doctorBlock(k, animate){
+  const sep = add(`<div class="tsep">${T.doc}</div>`, animate);
+  add(`<div class="sys">${esc(tpl(UI.reviewed, k.d))}</div>`, animate);
+  add(`<div class="turn"><div class="turn-head">${avatar('doctor', k, 'sm')}<div><div class="turn-name">${esc(k.d.name)}</div><div class="turn-sub">${esc(k.d.department)} · ${esc(k.d.title)}</div></div></div><div class="bubble"><p>${esc(UI.doctor_prefix)}</p><p>${esc(k.c.advice[k.docKey].doctor)}</p><p class="sig">${esc(tpl(UI.doctor_signature, k.d))}</p></div></div>`, animate);
+  renderActions(k, animate);
+  return sep;
+}
+const SENDERS = ['contact-doctor','contact-ai','contact-platform','other','end-consultation'];
+function renderActions(k, animate){
+  const old = chat().querySelector('.acts'); if (old) old.remove();
+  const ended = S.ended[S.sc];
+  const rows = UI.actions.map(a => `<button type="button" class="act" data-act="${a.id}" ${ended && SENDERS.includes(a.id) ? 'disabled' : ''}><span>${esc(a.label)}</span>${ICON.chev}</button>`).join('');
+  const el = add(`<section class="acts" aria-label="接下来你可以"><h3>接下来你可以</h3>${rows}</section>`, animate);
+  el.querySelectorAll('.act').forEach(b => b.addEventListener('click', () => onAction(b.dataset.act)));
+  const oldEnd = chat().querySelector('.ended'); if (oldEnd) oldEnd.remove();
+  const oldFic = chat().querySelector('.fiction'); if (oldFic) oldFic.remove();
+  if (ended) add(`<div class="ended">${esc(UI.consultation_ended)} · 历史记录仍可查看</div>`, animate);
+  add(`<p class="fiction">以上为虚构研究情境，请围绕材料进行体验。</p>`);
+}
+
+/* ---------- dock ---------- */
+function dockComposer(item, busy){
+  const k = ctx();
+  const remaining = k.script.slice(S.cursor).filter(x => x.who === 'pt').length;
+  const text = busy ? '对方正在回复…' : item.text;
+  $('dock').innerHTML = `<div class="hint"><span>${busy ? '请先阅读回复' : '已为你准备好下一条，点击发送'}</span><span class="count">${busy ? '' : '还有 ' + remaining + ' 条'}</span></div>
+    <div class="composer"><div class="field ${busy ? 'waiting' : ''}" id="field" aria-live="polite">${esc(text)}</div>
+    <button type="button" class="send ${busy ? '' : 'ready'}" id="btn-send" aria-label="发送" ${busy ? 'disabled' : ''}>${ICON.send}</button></div>`;
+  if (!busy) $('btn-send').addEventListener('click', send);
+}
+/* product action (no research-flow label): "请真人医生看看" after the AI answer (§10.2) */
+function dockRequest(label, handler){
+  $('dock').innerHTML = `<button type="button" class="req-btn" id="btn-flow">${ICON.doctor}<span>${esc(label)}</span></button>`;
+  $('btn-flow').addEventListener('click', handler);
+}
+function dockFlow(label, handler, icon = ICON.next, disabled = false){
+  $('dock').innerHTML = `<div class="flow"><span class="flow-label" aria-hidden="true">研究<br>流程</span><button type="button" class="flow-btn" id="btn-flow" ${disabled ? 'disabled' : ''}>${esc(label)}${icon}</button></div>`;
+  if (!disabled) $('btn-flow').addEventListener('click', handler);
+}
+
+/* ---------- flow ---------- */
+let runToken = 0;
+async function advance(){
+  const token = ++runToken;
+  const k = ctx();
+  while (true){
+    if (token !== runToken) return;
+    const item = k.script[S.cursor];
+    if (!item){ S.phase = 'A_done'; save(); dockRequest(UI.reveal, () => confirmFlow('reveal', reveal)); return; }
+    if (item.who === 'pt'){ dockComposer(item, false); scrollBottom(); return; }
+    dockComposer(k.script.slice(S.cursor).find(x => x.who === 'pt') || {}, true);
+    await renderAI(k, item, true);
+    if (token !== runToken) return;
+    S.cursor++;
+    log(item.kind === 'advice' ? 'ai_advice_shown' : 'ai_message_shown', {target: item.id});
+  }
+}
+function send(){
+  const k = ctx(), item = k.script[S.cursor];
+  if (!item || item.who !== 'pt') return;
+  renderPatient(k, item, true);
+  S.cursor++;
+  log('message_send', {target: item.id, text: item.text});
+  scrollBottom();
+  advance();
+}
+/* Research-flow steps cannot be undone, so each asks once more; cancelling is logged. */
+const FLOW_CONFIRM = {
+  reveal: {title: UI.reveal, prompt: UI.reveal_confirm},
+  next:   {title:'进入下一个问诊', prompt:'确认进入下一个问诊？当前问诊将不能返回。'},
+  finish: {title:'结束演示', prompt:'确认结束演示？结束后不能返回问诊界面。'}
+};
+function confirmFlow(step, go){
+  const c = FLOW_CONFIRM[step];
+  log('flow_confirm_open', {target: step});
+  let decided = false;
+  openSheet(c.title, `<p class="prompt">${esc(c.prompt)}</p>`, [
+    {label: UI.cancel, onClick: () => closeSheet('cancel')},
+    {label: UI.confirm, cls: 'primary', onClick: () => { decided = true; closeSheet('done'); go(); }}
+  ], () => { if (!decided) log('flow_cancel', {target: step}); });
+}
+function secondsSinceAdvice(){
+  const ev = [...S.events].reverse().find(e => e.event_type === 'ai_advice_shown' && e.scenario_index === S.sc + 1);
+  return ev ? Math.round((Date.now() - Date.parse(ev.event_time)) / 100) / 10 : null;
+}
+/* Waiting for the doctor, about 35 s (§9.6): a status bar steps through three lines (15 s, 10 s, 10 s; 1 s each with reduced motion),
+   then the notification, system line and reply appear. The phase is already B, so a reload during the wait shows the reply at once. */
+const DOCTOR_WAIT = [15000, 10000, 10000];
+async function reveal(){
+  const k = ctx(), token = ++runToken;
+  const secs = secondsSinceAdvice();
+  S.phase = 'B'; log('doctor_reveal', {data: {seconds_since_ai_advice: secs}});
+  dockAfterReveal(true);
+  const bar = add(`<div class="waitbar" role="status"><span class="spin" aria-hidden="true"></span><span></span></div>`, true);
+  const label = bar.lastElementChild;
+  for (let i = 0; i < DOCTOR_WAIT.length; i++){
+    label.textContent = tpl(UI.doctor_waiting[i], k.d); scrollBottom();
+    await pause(DOCTOR_WAIT[i], 1000);
+    if (token !== runToken) return;
+    if (i === 0){
+      // step 1 ("正在为您接入真人医生…") ends: the doctor card and "{doctor}已接诊" appear above the status bar
+      const card = joinBlock(k, true); chat().append(bar);
+      markCardShown('live');
+      setTimeout(() => chat().scrollTo({top: card.offsetTop - 12, behavior: reduce ? 'auto' : 'smooth'}), 30);
+    }
+  }
+  bar.remove();
+  notify(k);
+  await pause(900, 300);
+  if (token !== runToken) return;
+  const sep = doctorBlock(k, true);
+  markReplyShown('live');
+  setTimeout(() => chat().scrollTo({top: sep.offsetTop - 12, behavior: reduce ? 'auto' : 'smooth'}), 30);
+  dockAfterReveal();
+}
+function markCardShown(how){
+  S.cardShown = S.cardShown || [false, false];
+  if (S.cardShown[S.sc]) return;
+  S.cardShown[S.sc] = true; log('doctor_card_shown', {target: how});
+}
+function markReplyShown(how){
+  S.replyShown = S.replyShown || [false, false];
+  if (S.replyShown[S.sc]) return;
+  S.replyShown[S.sc] = true; log('doctor_reply_shown', {target: how});
+}
+function dockAfterReveal(disabled = false){
+  if (S.sc === 0) dockFlow(UI.next, () => confirmFlow('next', nextScenario), ICON.next, disabled);
+  else dockFlow('结束演示', () => confirmFlow('finish', finish), ICON.ok, disabled);
+}
+function nextScenario(){
+  log('next_scenario');
+  S.sc = 1; S.cursor = 0; S.phase = 'A';
+  log('scenario_start');
+  renderChat();
+}
+function finish(){
+  log('walkthrough_complete');
+  S.phase = 'done'; S.status = 'walkthrough_complete'; save();
+  show('done');
+}
+function start(){
+  S.status = 'in_progress'; S.phase = 'A';
+  log('session_start'); log('scenario_start');
+  renderChat();
+}
+function renderChat(){
+  show('chat');
+  runToken++;
+  chat().innerHTML = '';
+  const k = ctx();
+  header(k);
+  k.script.slice(0, S.cursor).forEach(item => item.who === 'pt' ? renderPatient(k, item, false) : renderAI(k, item, false));
+  if (S.phase === 'B'){ joinBlock(k, false); markCardShown('restore'); doctorBlock(k, false); markReplyShown('restore'); dockAfterReveal(); requestAnimationFrame(() => chat().scrollTop = chat().scrollHeight); return; }
+  requestAnimationFrame(() => chat().scrollTop = chat().scrollHeight);
+  advance();
+}
+function show(which){
+  $('screen-start').hidden = which !== 'start';
+  $('screen-chat').hidden = which !== 'chat';
+  $('screen-done').hidden = which !== 'done';
+  closeMenu();
+  if (which === 'start') renderStart();
+  if (which === 'done') $('done-title').textContent = UI.complete;
+}
+/* Start page. Participants (assigned links) see only the session id; the moderator (setup mode) also sees
+   order/directions and the settings entry, and chooses explicitly whether to continue an earlier session. */
+let pendingResume = null;
+function renderStart(){
+  $('session-summary').textContent = SETUP ? `${S.config.session_id} · ${S.config.order} · ${S.config.directions.join(' / ')}` : `场次 ${S.config.session_id}`;
+  $('btn-settings').hidden = !SETUP;
+  const box = $('start-actions');
+  if (pendingResume){
+    const p = pendingResume;
+    const where = p.phase === 'done' ? '已完成' : p.phase === 'start' ? '未开始' : `进行到第 ${p.sc + 1} 个问诊`;
+    box.innerHTML = `<button class="primary-btn" id="btn-resume" type="button">继续上一场（${esc(p.config.session_id)}）</button>
+      <button class="btn" id="btn-new" type="button">开始新场次</button>
+      <p class="resume-note">这台设备上有一场记录：${esc(p.config.session_id)} · ${esc(p.config.order)} · ${esc(p.config.directions.join(' / '))} · ${where}</p>`;
+    $('btn-resume').addEventListener('click', () => { S = p; pendingResume = null; if (S.phase === 'start') show('start'); else resume(); });
+    $('btn-new').addEventListener('click', () => openSettings(true));
+    return;
+  }
+  box.innerHTML = `<button class="primary-btn" id="btn-start" type="button">${esc(UI.start)}</button>`;
+  $('btn-start').addEventListener('click', start);
+}
+
+/* ---------- sheets ---------- */
+let lastFocus = null, onSheetClose = null;
+function openSheet(title, body, actions = [], onClose){
+  lastFocus = document.activeElement; onSheetClose = onClose || null;
+  $('sheet-title').textContent = title;
+  $('sheet-body').innerHTML = body;
+  const bar = $('sheet-actions'); bar.innerHTML = ''; bar.hidden = !actions.length;
+  actions.forEach(a => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (a.cls || ''); b.textContent = a.label; b.addEventListener('click', a.onClick); bar.append(b); });
+  $('layer').hidden = false;
+  setTimeout(() => { const f = $('sheet-body').querySelector('textarea,input,select') || $('sheet-x'); f.focus(); }, 30);
+}
+function closeSheet(reason){
+  if ($('layer').hidden) return;
+  $('layer').hidden = true;
+  const cb = onSheetClose; onSheetClose = null;
+  if (cb) cb(reason || 'close');
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+$('sheet-x').addEventListener('click', () => closeSheet('close'));
+$('scrim').addEventListener('click', () => closeSheet('close'));
+document.addEventListener('keydown', e => {
+  if (!$('layer').hidden){
+    if (e.key === 'Escape'){ e.preventDefault(); closeSheet('close'); return; }
+    if (e.key === 'Tab'){
+      const f = [...$('sheet').querySelectorAll('button,textarea,input,select,[tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent);
+      if (!f.length) return; const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  } else if (e.key === 'Escape') closeMenu();
+});
+
+function onAction(id){
+  const k = ctx(), a = ACTION[id];
+  if (id === 'basis'){
+    log('panel_open', {target: id});
+    const ai = `<div class="basis"><div class="who">${aiAvatar(k,'sm')}<div><strong>${esc(k.aiName)}</strong><span>${T.ai} · 初步建议的依据</span></div></div><p>${esc(k.c.advice[k.aiKey].rationale)}</p></div>`;
+    const doc = `<div class="basis"><div class="who">${avatar('doctor', k, 'sm')}<div><strong>${esc(k.d.name)}</strong><span>${T.doc} · 医生建议的依据</span></div></div><p>${esc(k.c.advice[k.docKey].rationale)}</p></div>`;
+    openSheet(a.label, ai + doc, [], () => log('panel_close', {target: id}));
+    return;
+  }
+  if (id === 'source'){
+    log('panel_open', {target: id});
+    openSheet(a.label,
+      `<div class="kv"><h3>AI 回复</h3><p>${esc(k.aiName)}</p><p>${esc(UI.disclaimer)}</p><p>${esc(tpl(UI.review, k.d))}</p><p class="note">${esc(UI.source_ai)}</p></div>
+       <div class="kv"><h3>医生回复</h3><p>${esc(tpl(UI.reviewed, k.d))}</p><p class="note">${esc(tpl(UI.source_doctor, k.d))}</p></div>`,
+      [], () => log('panel_close', {target: id}));
+    return;
+  }
+  if (id === 'end-consultation'){
+    log('contact_open', {target: id});
+    let decided = false;
+    openSheet(a.label, `<p class="prompt">${esc(a.prompt)}</p>`, [
+      {label: UI.cancel, onClick: () => closeSheet('cancel')},
+      {label: a.label, cls: 'primary', onClick: () => { decided = true; S.ended[S.sc] = true; log('consultation_end', {target: id}); closeSheet('done'); renderActions(k, true); scrollBottom(); }}
+    ], () => { if (!decided) log('contact_cancel', {target: id}); });
+    return;
+  }
+  // contact-doctor / contact-ai / contact-platform / other
+  log('contact_open', {target: id});
+  let sent = false;
+  openSheet(a.label,
+    `<p class="prompt">${esc(a.prompt)}</p><textarea class="input" id="contact-text" placeholder="可以留空"></textarea><p class="note">${esc(UI.input_hint)}</p>`,
+    [
+      {label: UI.cancel, onClick: () => closeSheet('cancel')},
+      {label: id === 'other' ? UI.confirm : UI.submit, cls: 'primary', onClick: () => {
+        sent = true;
+        log('contact_submit', {target: id, text: $('contact-text').value.trim()});
+        $('sheet-body').innerHTML = `<div class="done-msg">${ICON.ok}<span>${esc(UI.simulated_submission)}</span></div>`;
+        const bar = $('sheet-actions'); bar.innerHTML = '';
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = UI.close; b.addEventListener('click', () => closeSheet('close')); bar.append(b); b.focus();
+      }}
+    ], () => { if (!sent) log('contact_cancel', {target: id}); });
+}
+
+function openRecord(){
+  const k = ctx();
+  log('panel_open', {target: 'case-info'});
+  const html = `<p class="note">${esc(UI.case_heading)}</p><div class="casetext">${esc(k.c.case_text)}</div>`;
+  openSheet('病情资料', html, [], () => log('panel_close', {target: 'case-info'}));
+}
+$('btn-caseinfo').addEventListener('click', openRecord);
+function openProfile(){
+  const k = ctx(), pf = PROFILE[k.caseId];
+  log('panel_open', {target: 'doctor-profile'});
+  const html = `<div class="profile-head">${avatar('doctor', k, 'lg')}<div><strong>${esc(k.d.name)}</strong><span>${esc(k.d.department)} · ${esc(k.d.title)}</span></div></div>
+    <div class="kv"><h3>医院</h3><p>${esc(k.d.hospital)}</p></div>
+    <div class="kv"><h3>专业方向</h3><p>${esc(pf.focus)}</p></div>
+    <div class="kv"><h3>执业经历</h3><p>${esc(pf.years)}</p><span class="verified">${ICON.ok}执业资质已经平台核验</span></div>
+    <p class="note">医生、医院与平台均为研究编写的虚构信息。</p>`;
+  openSheet('医生主页', html, [], () => log('panel_close', {target: 'doctor-profile'}));
+}
+function notify(k){
+  const n = $('notify');
+  n.innerHTML = `<span class="logo" aria-hidden="true">${ICON.logo}</span><div><b><span>${esc(SC.platform)}</span><span>${T.doc}</span></b><span>${esc(k.d.name)}回复了你的问诊</span></div>`;
+  n.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => n.classList.add('on')));
+  clearTimeout(notify.t); notify.t = setTimeout(() => { n.classList.remove('on'); setTimeout(() => n.hidden = true, 400); }, 2600);
+}
+
+/* ---------- menu, export, clear ---------- */
+function closeMenu(){ $('menu').hidden = true; $('btn-menu').setAttribute('aria-expanded','false'); }
+$('btn-menu').addEventListener('click', e => { e.stopPropagation(); const m = $('menu'); m.hidden = !m.hidden; $('btn-menu').setAttribute('aria-expanded', String(!m.hidden)); });
+document.addEventListener('click', e => { if (!$('menu').hidden && !$('menu').contains(e.target)) closeMenu(); });
+$('m-export').addEventListener('click', () => { closeMenu(); exportLog(); });
+$('m-clear').addEventListener('click', () => { closeMenu(); confirmClear(); });
+/* done screen: export / clear stay reachable for the moderator through the same "more" menu */
+$('btn-done-menu').addEventListener('click', e => { e.stopPropagation(); const m = $('menu'); m.hidden = !m.hidden; $('btn-done-menu').setAttribute('aria-expanded', String(!m.hidden)); });
+
+function exportLog(){
+  log('export');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const name = `${S.config.pid}_${S.config.session_id}_${S.segment_id.slice(0, 12)}_${stamp}.json`;
+  const envelope = {schema_version:'1.0', kind:'participant_log', config:S.config, segment_id:S.segment_id, exported_at:new Date().toISOString(),
+    state:{status:S.status, phase:S.phase, scenario_index:S.sc + 1, cursor:S.cursor, ended:S.ended, created_at:S.created_at, updated_at:S.updated_at},
+    events:S.events};
+  const text = JSON.stringify(envelope, null, 2);
+  try { const url = URL.createObjectURL(new Blob([text], {type:'application/json'})); const a = document.createElement('a'); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); } catch(e) {}
+  openSheet('导出记录', `<p class="note">已生成文件 <b>${esc(name)}</b>（${S.events.length} 条操作）。如果浏览器没有自动下载，请复制下面的内容另存为 .json 文件。</p><textarea class="json" id="json-out" readonly>${esc(text)}</textarea>`, [
+    {label:'复制内容', cls:'primary', onClick: () => {
+      const ta = $('json-out');
+      const done = () => toast('已复制');
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { ta.select(); toast('请按 Ctrl/⌘+C 复制'); });
+      else { ta.select(); toast('请按 Ctrl/⌘+C 复制'); }
+    }},
+    {label: UI.close, onClick: () => closeSheet('close')}
+  ]);
+}
+function confirmClear(){
+  openSheet('清除本场记录', `<p class="prompt">确认清除这台设备上 <b>${esc(S.config.session_id)}</b> 的问诊记录吗？</p><p class="note">请先确认记录已经导出并交给研究者。清除后不能恢复，页面会回到开始。</p>`, [
+    {label: UI.cancel, onClick: () => closeSheet('cancel')},
+    {label:'清除', cls:'danger', onClick: () => {
+      try { localStorage.removeItem(key(S.config.session_id)); } catch(e) {}
+      const cfg = S.config; S = freshState(cfg); runToken++; closeSheet('done'); show('start'); toast('本场记录已清除');
+    }}
+  ]);
+}
+
+/* ---------- settings (start screen only) ---------- */
+$('btn-settings').addEventListener('click', () => openSettings(false));
+function openSettings(isNew, draft){
+  const c = draft || (isNew ? {...S.config, pid:'', session_id:''} : S.config);
+  const opt = (vals, cur) => vals.map(v => `<option ${v === cur ? 'selected' : ''}>${v}</option>`).join('');
+  openSheet(isNew ? '开始新场次' : '场次设置', `<p class="note">由主持人在开场前填写。各场的顺序与方向以场次分配表为准。</p>
+    <div class="form-grid">
+      <label>参与者编号<input id="f-pid" value="${esc(c.pid)}" autocomplete="off"></label>
+      <label>场次编号<input id="f-sid" value="${esc(c.session_id)}" autocomplete="off"></label>
+      <label class="wide">情境顺序<select id="f-order">${Object.keys(ORDERS).map(o => `<option value="${o}" ${o === c.order ? 'selected' : ''}>${o}：${ORDERS[o].map(([cid, id]) => SC.cases[cid].doctor.name + (id === 'avatar' ? '·AI 分身' : '·平台 AI')).join(' → ')}</option>`).join('')}</select></label>
+      <label>第一情境方向<select id="f-d1">${opt(['XY','YX'], c.directions[0])}</select></label>
+      <label>第二情境方向<select id="f-d2">${opt(['XY','YX'], c.directions[1])}</select></label>
+    </div><p class="err" id="f-err" hidden>编号只能用字母、数字、下划线和短横线。</p>`, [
+    {label: UI.cancel, onClick: () => closeSheet('cancel')},
+    {label:'保存', cls:'primary', onClick: () => {
+      const cfg = {...S.config, pid:$('f-pid').value.trim(), session_id:$('f-sid').value.trim(), order:$('f-order').value, directions:[$('f-d1').value, $('f-d2').value]};
+      delete cfg.replaced_segment_id;
+      if (!validConfig(cfg)){ $('f-err').hidden = false; return; }
+      const saved = load(cfg.session_id);
+      closeSheet('done');
+      if (saved && saved.schema_version === '1.0'){
+        const same = saved.config.order === cfg.order && JSON.stringify(saved.config.directions) === JSON.stringify(cfg.directions);
+        if (same){ S = saved; pendingResume = null; if (S.phase !== 'start') resume(); else show('start'); return; }
+        confirmOverwrite(saved, cfg, isNew);
+        return;
+      }
+      S = freshState(cfg); pendingResume = null; show('start');
+    }}
+  ]);
+  const pid = $('f-pid'), sid = $('f-sid'); let sidTouched = !!c.session_id && c.session_id !== c.pid + '_session01';
+  sid.addEventListener('input', () => sidTouched = true);
+  pid.addEventListener('input', () => { if (!sidTouched) sid.value = pid.value.trim() + '_session01'; });
+}
+function confirmOverwrite(saved, cfg, isNew){
+  const sc = saved.config;
+  openSheet('编号已有记录', `<div class="warnbox">这台设备上已有 <b>${esc(sc.session_id)}</b> 的记录（${esc(sc.order)} · ${esc(sc.directions.join(' / '))}，${saved.events.length} 条操作），与新填的 ${esc(cfg.order)} · ${esc(cfg.directions.join(' / '))} 不同。</div>
+    <p class="note">继续将用新设置新建这一场，覆盖原记录，原记录不能恢复。若原记录还需要，请返回换一个场次编号。</p>`, [
+    {label:'返回修改', onClick: () => { closeSheet('cancel'); openSettings(isNew, cfg); }},
+    {label:'覆盖并新建', cls:'danger', onClick: () => {
+      S = freshState({...cfg, replaced_segment_id: saved.segment_id}); save(); pendingResume = null; closeSheet('done'); show('start'); toast('已按新设置新建场次');
+    }}
+  ]);
+}
+
+/* ---------- toast ---------- */
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* ---------- boot ---------- */
+function resume(){
+  if (S.phase === 'done'){ show('done'); return; }
+  log('restore', {target: S.phase});
+  renderChat(); toast('已恢复到刚才的位置');
+}
+$('brand-name').textContent = SC.platform;
+const cfg = readConfig();
+if (ASSIGNED){
+  // assigned link: the same session id on this device is restored (reload recovery)
+  const saved = load(cfg.session_id);
+  S = saved && saved.schema_version === '1.0' ? saved : freshState(cfg);
+  if (S.phase === 'start') show('start'); else resume();
+} else {
+  // no parameters: never resume silently; offer the earlier session on the start page
+  S = freshState(cfg);
+  let last = null; try { last = localStorage.getItem(KEY_LAST); } catch(e) {}
+  const prev = last ? load(last) : null;
+  pendingResume = prev && prev.schema_version === '1.0' && validConfig(prev.config) ? prev : null;
+  show('start');
+}
+})();
+</script>
+</body>
+</html>
