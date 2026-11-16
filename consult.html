@@ -285,7 +285,7 @@ textarea.input{width:100%;min-height:128px;border:1px solid #C5D5D0;border-radiu
     <div class="start-foot">
       <div class="start-actions" id="start-actions"></div>
       <p class="fine">以下为虚构研究情境，无需输入真实姓名、联系方式或病历。</p>
-      <div class="session-line"><span class="pill">内部预览 · 临床内容待审核</span><span id="session-summary"></span><button class="linkish" id="btn-settings" type="button" hidden>场次设置</button></div>
+      <div class="session-line"><span class="pill" id="preview-pill">内部预览 · 临床内容待审核</span><span id="session-summary"></span><button class="linkish" id="btn-settings" type="button" hidden>场次设置</button></div>
     </div>
   </section>
 
@@ -335,7 +335,7 @@ textarea.input{width:100%;min-height:128px;border:1px solid #C5D5D0;border-radiu
 (function(){
 'use strict';
 const SC = window.StudyContent;
-const BUILD = 'consult-draft-2026-11-13.4';
+const BUILD = 'consult-draft-2026-11-13.5';
 
 /* ---------- new text: AI follow-up questions and patient turns (draft, pending clinical review) ---------- */
 const SCRIPTS = {
@@ -750,6 +750,7 @@ let pendingResume = null;
 function renderStart(){
   $('session-summary').textContent = SETUP ? `${S.config.session_id} · ${S.config.order} · ${S.config.directions.join(' / ')}` : `场次 ${S.config.session_id}`;
   $('btn-settings').hidden = !SETUP;
+  $('preview-pill').hidden = !SETUP;  // participants on an assigned link do not see the internal-preview label
   const box = $('start-actions');
   if (pendingResume){
     const p = pendingResume;
