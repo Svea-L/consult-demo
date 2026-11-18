@@ -335,7 +335,10 @@ textarea.input{width:100%;min-height:128px;border:1px solid #C5D5D0;border-radiu
 (function(){
 'use strict';
 const SC = window.StudyContent;
-const BUILD = 'consult-frozen-2026-11-16.1';
+const BUILD = 'consult-frozen-2026-11-18.2';
+/* direction codes (dialogue-script-v3.md §12.1): first letter = the reading the AI ranks first, second = the doctor's reading.
+   XY / YX: doctor disagrees; XX / YY: doctor agrees (same reviewed texts, new pairing). */
+const DIRS = ['XY','YX','XX','YY'];
 
 /* ---------- new text: AI follow-up questions and patient turns (draft, pending clinical review) ---------- */
 const SCRIPTS = {
@@ -419,8 +422,17 @@ function readConfig(){
                content_version: SC.content_version, study_material_version: SC.study_material_version, build: BUILD};
   return validConfig(cfg) ? cfg : {...cfg, pid:'PREVIEW', session_id:'PREVIEW_session01', order:'S1', directions:['XY','YX']};
 }
+/* only the parameters actually present in the link are compared, so a link carrying just sid still resumes */
+function linkConflicts(saved, cfg){
+  if (!saved) return false;
+  if (PARAMS.has('pid') && saved.pid !== cfg.pid) return true;
+  if (PARAMS.has('order') && saved.order !== cfg.order) return true;
+  if (PARAMS.has('d1') && (saved.directions || [])[0] !== cfg.directions[0]) return true;
+  if (PARAMS.has('d2') && (saved.directions || [])[1] !== cfg.directions[1]) return true;
+  return false;
+}
 function validConfig(c){
-  return /^[A-Za-z0-9_-]{1,50}$/.test(c.pid) && /^[A-Za-z0-9_-]{1,80}$/.test(c.session_id) && ORDERS[c.order] && c.directions.every(d => d === 'XY' || d === 'YX');
+  return /^[A-Za-z0-9_-]{1,50}$/.test(c.pid) && /^[A-Za-z0-9_-]{1,80}$/.test(c.session_id) && ORDERS[c.order] && c.directions.every(d => DIRS.includes(d));
 }
 
 /* ---------- context of the current scenario ---------- */
@@ -913,13 +925,13 @@ function openSettings(isNew, draft){
       <label>参与者编号<input id="f-pid" value="${esc(c.pid)}" autocomplete="off"></label>
       <label>场次编号<input id="f-sid" value="${esc(c.session_id)}" autocomplete="off"></label>
       <label class="wide">情境顺序<select id="f-order">${Object.keys(ORDERS).map(o => `<option value="${o}" ${o === c.order ? 'selected' : ''}>${o}：${ORDERS[o].map(([cid, id]) => SC.cases[cid].doctor.name + (id === 'avatar' ? '·AI 分身' : '·平台 AI')).join(' → ')}</option>`).join('')}</select></label>
-      <label>第一情境方向<select id="f-d1">${opt(['XY','YX'], c.directions[0])}</select></label>
-      <label>第二情境方向<select id="f-d2">${opt(['XY','YX'], c.directions[1])}</select></label>
+      <label>第一情境方向<select id="f-d1">${opt(DIRS, c.directions[0])}</select></label>
+      <label>第二情境方向<select id="f-d2">${opt(DIRS, c.directions[1])}</select></label>
     </div><p class="err" id="f-err" hidden>编号只能用字母、数字、下划线和短横线。</p>`, [
     {label: UI.cancel, onClick: () => closeSheet('cancel')},
     {label:'保存', cls:'primary', onClick: () => {
       const cfg = {...S.config, pid:$('f-pid').value.trim(), session_id:$('f-sid').value.trim(), order:$('f-order').value, directions:[$('f-d1').value, $('f-d2').value]};
-      delete cfg.replaced_segment_id;
+      delete cfg.replaced_segment_id; delete cfg.archived_record_key;
       if (!validConfig(cfg)){ $('f-err').hidden = false; return; }
       const saved = load(cfg.session_id);
       closeSheet('done');
@@ -959,9 +971,17 @@ function resume(){
 $('brand-name').textContent = SC.platform;
 const cfg = readConfig();
 if (ASSIGNED){
-  // assigned link: the same session id on this device is restored (reload recovery)
-  const saved = load(cfg.session_id);
-  S = saved && saved.schema_version === '1.0' ? saved : freshState(cfg);
+  // assigned link: the same session id on this device is restored (reload recovery) — but only when every session
+  // parameter the link carries (pid, order, d1, d2) matches that record. On a mismatch the old record is moved to an
+  // archive key and a new session starts from the link; nothing is shown to the participant (order and directions stay hidden).
+  let saved = load(cfg.session_id);
+  if (saved && saved.schema_version === '1.0' && linkConflicts(saved.config, cfg)){
+    const archiveKey = `kangyou-consult-archive:${cfg.session_id}:${new Date().toISOString()}`;
+    try { localStorage.setItem(archiveKey, JSON.stringify(saved)); } catch(e) {}
+    S = freshState({...cfg, replaced_segment_id: saved.segment_id, archived_record_key: archiveKey});
+    log('session_replaced', {data: {archived_key: archiveKey, previous_config: {pid: saved.config.pid, order: saved.config.order, directions: saved.config.directions}}});
+    saved = null;
+  } else S = saved && saved.schema_version === '1.0' ? saved : freshState(cfg);
   if (S.phase === 'start') show('start'); else resume();
 } else {
   // no parameters: never resume silently; offer the earlier session on the start page
